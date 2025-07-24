@@ -1,0 +1,167 @@
+
+<!DOCTYPE html>
+<html lang="fi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Karttaruudukko (mobiili)</title>
+<style>
+  body {
+    font-family: sans-serif;
+    margin: 0;
+    padding: 10px;
+    text-align: center;
+    background: #f8f8f8;
+  }
+  canvas {
+    width: 100%;
+    height: auto;
+    border: 1px solid #ccc;
+    touch-action: none;
+  }
+  .controls {
+    margin-top: 10px;
+  }
+  label {
+    display: block;
+    margin: 5px 0;
+  }
+</style>
+</head>
+<body>
+<h2>Karttaruudukko</h2>
+<input type="file" id="fileInput" accept="image/*"><br>
+<div class="controls">
+  <label>
+    Rivit:
+    <input type="range" id="rows" min="1" max="26" value="20">
+    <span id="rowVal">20</span>
+  </label>
+  <label>
+    Sarakkeet:
+    <input type="range" id="cols" min="1" max="20" value="20">
+    <span id="colVal">20</span>
+  </label>
+</div>
+<canvas id="canvas"></canvas>
+<p id="hoverInfo"></p>
+<script>
+const fileInput = document.getElementById("fileInput");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const rows = document.getElementById("rows");
+const cols = document.getElementById("cols");
+const rowVal = document.getElementById("rowVal");
+const colVal = document.getElementById("colVal");
+const hoverInfo = document.getElementById("hoverInfo");
+
+let img = new Image();
+let selection = null;
+let drawing = false;
+
+rows.oninput = () => rowVal.textContent = rows.value;
+cols.oninput = () => colVal.textContent = cols.value;
+
+fileInput.onchange = () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    img.onload = () => {
+      const ratio = img.width / img.height;
+      canvas.width = window.innerWidth;
+      canvas.height = canvas.width / ratio;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+};
+
+canvas.addEventListener("touchstart", (e) => {
+  if (e.touches.length !== 1) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = e.touches[0].clientX - rect.left;
+  const y = e.touches[0].clientY - rect.top;
+  selection = { x, y, width: 0, height: 0 };
+  drawing = true;
+});
+
+canvas.addEventListener("touchmove", (e) => {
+  if (!drawing || e.touches.length !== 1) return;
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const x = e.touches[0].clientX - rect.left;
+  const y = e.touches[0].clientY - rect.top;
+  selection.width = x - selection.x;
+  selection.height = y - selection.y;
+  redraw();
+});
+
+canvas.addEventListener("touchend", () => {
+  if (!drawing) return;
+  drawing = false;
+  normalize(selection);
+  drawGrid(selection);
+});
+
+function normalize(box) {
+  if (box.width < 0) {
+    box.x += box.width;
+    box.width *= -1;
+  }
+  if (box.height < 0) {
+    box.y += box.height;
+    box.height *= -1;
+  }
+}
+
+function redraw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  if (selection) {
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 2;
+    ctx.strokeRect(selection.x, selection.y, selection.width, selection.height);
+  }
+}
+
+function drawGrid(box) {
+  redraw();
+  const r = parseInt(rows.value);
+  const c = parseInt(cols.value);
+  const cellW = box.width / c;
+  const cellH = box.height / r;
+  ctx.setLineDash([]);
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
+  for (let i = 0; i <= c; i++) {
+    const x = box.x + i * cellW;
+    ctx.beginPath();
+    ctx.moveTo(x, box.y);
+    ctx.lineTo(x, box.y + box.height);
+    ctx.stroke();
+  }
+  for (let j = 0; j <= r; j++) {
+    const y = box.y + j * cellH;
+    ctx.beginPath();
+    ctx.moveTo(box.x, y);
+    ctx.lineTo(box.x + box.width, y);
+    ctx.stroke();
+  }
+
+  ctx.fillStyle = "#0f0";
+  ctx.font = `${Math.min(cellW, cellH) * 0.3}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  for (let i = 0; i < c; i++) {
+    ctx.fillText(i + 1, box.x + (i + 0.5) * cellW, box.y + cellH * 0.3);
+  }
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  for (let j = 0; j < r; j++) {
+    ctx.fillText(letters[j], box.x + cellW * 0.3, box.y + (j + 0.5) * cellH);
+  }
+}
+</script>
+</body>
+</html>
